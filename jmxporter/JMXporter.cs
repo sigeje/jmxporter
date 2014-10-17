@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.Text;
 using System.IO;
+using System.Windows;
 using Fiddler;
+using System.Windows.Forms;
 // Fiddler minimum version required
 [assembly: Fiddler.RequiredVersion("4.4.9.3")]
 
@@ -11,11 +13,18 @@ namespace jmxporter
     [ProfferFormat("JMeter", "JMeter .jmx Format")]
     public class JMXporter : ISessionExporter
     {
+        private static bool bUseRaw = false;
+
         public bool ExportSessions(string sFormat, Session[] oSessions, Dictionary<string, object> dictOptions,
             EventHandler<ProgressCallbackEventArgs> evtProgressNotifications)
         {
             bool bResult = true;
             string sFilename = null;
+            Dictionary<string, object> oArgs = new Dictionary<string, object>();
+
+            DialogResult oUseRawResult = MessageBox.Show("Do you want to use RAW POST body data?", "RAW POST body data", MessageBoxButtons.YesNo);
+            bUseRaw = oUseRawResult == DialogResult.Yes ? true : false;
+            oArgs.Add("useRaw", bUseRaw);
 
             sFilename = Fiddler.Utilities.ObtainSaveFilename("Export As " + sFormat, "JMeter Files (*.jmx)|*.jmx");
 
@@ -27,7 +36,7 @@ namespace jmxporter
             {
                 Encoding encUTF8NoBOM = new UTF8Encoding(false);
 
-                JMeterTestPlan jMeterTestPlan = new JMeterTestPlan(oSessions, sFilename);
+                JMeterTestPlan jMeterTestPlan = new JMeterTestPlan(oSessions, sFilename, oArgs);
                 System.IO.StreamWriter sw = new StreamWriter(sFilename, false, encUTF8NoBOM);
 
                 sw.Write(jMeterTestPlan.Jmx);

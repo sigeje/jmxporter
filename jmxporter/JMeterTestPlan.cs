@@ -12,6 +12,7 @@ namespace jmxporter
     {
         private SessionList sessionList;
         private Fiddler.Session[] sessions;
+        internal static Dictionary<string, object> args;
 
         public JMeterTestPlan()
         {
@@ -23,6 +24,13 @@ namespace jmxporter
         {
             this.sessions = oSessions;
             sessionList = new SessionList(oSessions);
+        }
+
+        public JMeterTestPlan(Fiddler.Session[] oSessions, string outputFilename, Dictionary<string, object> oArgs)
+        {
+            this.sessions = oSessions;
+            sessionList = new SessionList(oSessions);
+            args = oArgs;
         }
 
         public string Jmx 
@@ -64,7 +72,8 @@ namespace jmxporter
             this.sessions = oSessions;
         }
 
-        public string Xml {
+        public string Xml 
+        {
             get 
             {
                 StringBuilder sb = new StringBuilder();
@@ -97,17 +106,28 @@ namespace jmxporter
             get
             {
                 StringBuilder sb = new StringBuilder();
+                
                 sb.Append(String.Format("<HTTPSamplerProxy guiclass=\"HttpTestSampleGui\" "
                     + "testclass=\"HTTPSamplerProxy\" testname=\"{0}\" enabled=\"true\">",
                     Path));
-                sb.Append("<boolProp name=\"HTTPSampler.postBodyRaw\">true</boolProp>");
-                sb.Append("<elementProp name=\"HTTPSampler.Arguments\" elementType=\"Arguments\">");
+                
+                if (JMeterTestPlan.args["useRaw"].Equals(true))
+                {
+                    sb.Append("<boolProp name=\"HTTPSampler.postBodyRaw\">true</boolProp>");
+                }
+                
+                sb.Append("<elementProp name=\"HTTPsampler.Arguments\" elementType=\"Arguments\">");
                 sb.Append("<collectionProp name=\"Arguments.arguments\">");
-                sb.Append("<elementProp name=\"\" elementType=\"HTTPArgument\">");
-                sb.Append("<boolProp name=\"HTTPArgument.always_encode\">false</boolProp>");
-                sb.Append(String.Format("<stringProp name=\"Argument.value\">{0}</stringProp>", RequestBody));
-                sb.Append("<stringProp name=\"Argument.metadata\">=</stringProp>");
-                sb.Append("</elementProp>");
+
+                if (JMeterTestPlan.args["useRaw"].Equals(true))
+                {
+                    sb.Append(RequestRawBody);
+                }
+                else
+                {
+                    sb.Append(RequestBody);
+                }
+
                 sb.Append("</collectionProp>");
                 sb.Append("</elementProp>");
                 sb.Append(String.Format("<stringProp name=\"HTTPSampler.domain\">{0}</stringProp>", session.host));
@@ -167,7 +187,37 @@ namespace jmxporter
         {
             get
             {
-                return System.Net.WebUtility.HtmlEncode(session.GetRequestBodyAsString());
+                StringBuilder sb = new StringBuilder();
+
+                string sRequestBody = session.GetRequestBodyAsString();
+                foreach (var argument in sRequestBody.Split('&'))
+                {
+                    string[] strings = argument.Split('=');
+                    string name = strings[0];
+                    string value = strings.Length == 1 ? "" : strings[1];
+                    sb.Append(String.Format("<elementProp name=\"{0}\" elementType=\"HTTPArgument\">", name));
+                    sb.Append("<boolProp name=\"HTTPArgument.always_encode\">false</boolProp>");
+                    sb.Append(String.Format("<stringProp name=\"Argument.name\">{0}</stringProp>", name));
+                    sb.Append(String.Format("<stringProp name=\"Argument.value\">{0}</stringProp>", value));
+                    sb.Append("<stringProp name=\"Argument.metadata\">=</stringProp>");
+                    sb.Append("<boolProp name=\"HTTPArgument.use_equals\">true</boolProp>");
+                    sb.Append("</elementProp>");
+                }
+                return sb.ToString();
+            }
+        }
+
+        private string RequestRawBody
+        {
+            get
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.Append("<elementProp name=\"\" elementType=\"HTTPArgument\">");
+                sb.Append("<boolProp name=\"HTTPArgument.always_encode\">false</boolProp>");
+                sb.Append(String.Format("<stringProp name=\"Argument.value\">{0}</stringProp>", System.Net.WebUtility.HtmlEncode(session.GetRequestBodyAsString())));
+                sb.Append("<stringProp name=\"Argument.metadata\">=</stringProp>");
+                sb.Append("</elementProp>");
+                return sb.ToString();
             }
         }
     }
